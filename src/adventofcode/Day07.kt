@@ -3,14 +3,12 @@ package adventofcode
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
 
-private typealias Operation = (value: Long, num: Int) -> Long
-
 @State(Scope.Benchmark)
 @Fork(1)
-@Warmup(iterations = 0)
+@Warmup(iterations = 2)
 @Measurement(iterations = 10, time = 2, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 class Day07 {
 
     var input = emptyList<String>()
@@ -21,48 +19,53 @@ class Day07 {
     }
 
     @Benchmark
-    fun part1(): Long {
-        val operations = listOf<Operation>(Long::plus, Long::times)
-        return solve(operations)
-    }
+    fun part1() = solve(false)
 
     @Benchmark
-    fun part2(): Long {
-        val operations = listOf<Operation>(
-            Long::plus,
-            Long::times,
-            { a, b -> a concat b }
-        )
-        return solve(operations)
-    }
+    fun part2() = solve(true)
 
-    private fun solve(operations: List<Operation>): Long {
+    private fun solve(concat: Boolean): Long {
         return input.sumOf { line ->
             val (target, numbers) = parseLine(line)
-            if (!canSolve(target, numbers, operations, 1, numbers[0].toLong())) {
+            if (!canSolve(target, numbers, numbers.lastIndex, concat)) {
                 return@sumOf 0L
             }
             target
         }
     }
 
-    private fun canSolve(
-        target: Long,
-        numbers: List<Int>,
-        operations: List<Operation>,
-        index: Int,
-        value: Long
-    ): Boolean {
-        if (index == numbers.size) return target == value
-        if (value > target) return false
+    private fun canSolve(remaining: Long, numbers: List<Long>, index: Int, concat: Boolean): Boolean {
+        fun canSolve(remaining: Long) = canSolve(remaining, numbers, index - 1, concat)
+        if (index == -1) return remaining == 0L
+        if (remaining < 0) return false
 
         val num = numbers[index]
-        return operations.any { operation ->
-            canSolve(target, numbers, operations, index + 1, operation.invoke(value, num))
+
+        if (remaining >= num && canSolve(remaining - num)) {
+            return true
         }
+
+        if (remaining % num == 0L && canSolve(remaining / num)) {
+            return true
+        }
+
+        if (concat && remaining > num) {
+            var left = remaining
+            var right = num
+            while (right != 0L && left % 10 == right % 10) {
+                left /= 10
+                right /= 10
+            }
+
+            if (right == 0L && canSolve(left)) {
+                return true
+            }
+        }
+
+        return false
     }
 
-    private fun parseLine(line: String): Pair<Long, MutableList<Int>> {
+    private fun parseLine(line: String): Pair<Long, MutableList<Long>> {
         var index = 1
         var target = (line[0] - '0').toLong()
         while (line[index] != ':') {
@@ -71,8 +74,8 @@ class Day07 {
 
         index++
         index++
-        val numbers = mutableListOf<Int>()
-        var num = 0
+        val numbers = mutableListOf<Long>()
+        var num = 0L
         while (index < line.length) {
             if (line[index] == ' ') {
                 numbers += num
@@ -85,14 +88,6 @@ class Day07 {
 
         numbers += num
         return Pair(target, numbers)
-    }
-
-    private infix fun Long.concat(other: Int): Long {
-        return when {
-            other < 10 -> this * 10 + other
-            other < 100 -> this * 100 + other
-            else -> this * 1000 + other
-        }
     }
 }
 
