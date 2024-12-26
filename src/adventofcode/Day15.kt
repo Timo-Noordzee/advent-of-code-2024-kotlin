@@ -1,5 +1,8 @@
 package adventofcode
 
+import adventofcode.util.Direction
+import adventofcode.util.Point2D
+import adventofcode.util.plus
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
 
@@ -19,75 +22,101 @@ class Day15 {
     }
 
     @Benchmark
-    fun part1(): Int {
-        val map = input.takeWhile { it.isNotEmpty() }
-        val m = map.size
-        val n = map[0].length
+    fun part1() = solve()
 
-        val walls = mutableSetOf<Pair<Int, Int>>()
-        val boxes = mutableSetOf<Pair<Int, Int>>()
+    @Benchmark
+    fun part2(): Int {
+        val mapInput = input.takeWhile { it.isNotEmpty() }.map { line ->
+            val stringBuilder = StringBuilder()
+            line.forEach { tile ->
+                stringBuilder.append(
+                    when (tile) {
+                        '@' -> "@."
+                        '#' -> "##"
+                        'O' -> "[]"
+                        else -> ".."
+                    }
+                )
+            }
+            stringBuilder.toString()
+        }
 
-        var start = Pair(0, 0)
+        return solve(mapInput)
+    }
+
+    private fun solve(mapInput: List<String> = input.takeWhile { it.isNotEmpty() }): Int {
+        val m = mapInput.size
+        val n = mapInput[0].length
+        val map = Array(m) { CharArray(n) { '.' } }
+
+        // Convert the map input to a mutable array of char arrays and find the starting point
+        var start = Point2D(0, 0)
         for (i in 0 until m) {
+            val line = mapInput[i]
             for (j in 0 until n) {
-                when (map[i][j]) {
-                    '@' -> start = Pair(i, j)
-                    '#' -> walls += Pair(i, j)
-                    'O' -> boxes += Pair(i, j)
+                map[i][j] = line[j]
+
+                if (line[j] == '@') {
+                    start = Point2D(j, i)
                 }
             }
         }
 
-        var (i, j) = start
+        var currentPosition = start
+        val moves = input.subList(m + 1, input.size).joinToString("")
 
-        fun move(di: Int, dj: Int) {
-            var next = Pair(i + di, j + dj)
-
-            // Next position is a wall, can't continue
-            if (next in walls) {
-                return
+        move@ for (move in moves) {
+            val direction = when (move) {
+                '>' -> Direction.RIGHT
+                '<' -> Direction.LEFT
+                '^' -> Direction.UP
+                'v' -> Direction.DOWN
+                else -> error("unknown direction for move $move")
             }
 
-            // Next position is unoccupied, move
-            if (next !in boxes) {
-                i += di
-                j += dj
-                return
+            val pushes = mutableListOf<Pair<Point2D, Point2D>>()
+            val seen = mutableSetOf<Point2D>()
+            val queue = ArrayDeque<Point2D>()
+            queue.add(currentPosition)
+
+            while (queue.isNotEmpty()) {
+                val position = queue.removeFirst()
+                if (seen.add(position)) {
+                    if (direction.isHorizontal) {
+                        // Pushing a large box up or down, also check other half
+                        when (map[position.y][position.x]) {
+                            ']' -> queue.add(position + Direction.LEFT)
+                            '[' -> queue.add(position + Direction.RIGHT)
+                        }
+                    }
+
+                    val nextPosition = position + direction
+                    when (map[nextPosition.y][nextPosition.x]) {
+                        '#' -> continue@move
+                        'O', '[', ']' -> queue.add(nextPosition)
+                    }
+
+                    pushes.add(position to nextPosition)
+                }
             }
 
-            // Find end of stack of boxes
-            while (next in boxes) {
-                next = Pair(next.first + di, next.second + dj)
-            }
+            // Move can be performed, update current position
+            currentPosition += direction
 
-            // Stack of boxes in being pushed into a wall, can't continue
-            if (next in walls) {
-                return
+            for (i in pushes.lastIndex downTo 0) {
+                val (from, to) = pushes[i]
+                map[to.y][to.x] = map[from.y][from.x]
+                map[from.y][from.x] = '.'
             }
-
-            i += di
-            j += dj
-            // Push stack of boxes by moving the first box to the end of the stack
-            boxes -= Pair(i, j)
-            boxes += next
         }
 
-        val moves = input.drop(m + 1).joinToString()
-        moves.forEach { move ->
-            when (move) {
-                '>' -> move(0, 1)
-                '<' -> move(0, -1)
-                '^' -> move(-1, 0)
-                'v' -> move(1, 0)
+        return map.indices.sumOf { i ->
+            val line = map[i]
+            line.indices.sumOf { j ->
+                val tile = line[j]
+                if (tile == '[' || tile == 'O') (100 * i) + j else 0
             }
         }
-
-        return boxes.sumOf { (i, j) -> 100 * i + j }
-    }
-
-    @Benchmark
-    fun part2(): Int {
-        return 0
     }
 }
 
@@ -95,10 +124,10 @@ fun main() {
     val day15 = Day15()
 
     day15.input = readInput("Day15_test")
-    check(day15.part1().also { println("test part 1: $it") } == 2028)
-//    check(day15.part2().also { println("test part 2: $it") } == 0)
+    check(day15.part1().also { println("test part 1: $it") } == 10092)
+    check(day15.part2().also { println("test part 2: $it") } == 9021)
 
     day15.input = readInput("Day15")
     check(day15.part1().also { println("part 1: $it") } == 1412971)
-//    check(day15.part2().also { println("part 2: $it") } == 0)
+    check(day15.part2().also { println("part 2: $it") } == 1429299)
 }
