@@ -1,5 +1,8 @@
 package adventofcode
 
+import adventofcode.util.Direction
+import adventofcode.util.Point2D
+import adventofcode.util.plus
 import org.openjdk.jmh.annotations.*
 import java.util.concurrent.TimeUnit
 
@@ -57,8 +60,53 @@ class Day18 {
     }
 
     @Benchmark
-    fun part2(): Int {
-        return 0
+    fun part2(): String {
+        val grid = Array(size) { CharArray(size) { '.' } }
+        grid[0][0] = 'O'
+
+        // Start with a memory space on which each byte has fallen (worst case)
+        input.forEach {
+            val (j, i) = it.split(',').map(String::toInt)
+            grid[i][j] = '#'
+        }
+
+        val target = Point2D(size - 1, size - 1)
+        val queue = ArrayDeque<Point2D>()
+        queue.add(Point2D(0, 0))
+
+        var byteIndex = input.size
+
+        while (byteIndex > 0) {
+            while (queue.isNotEmpty()) {
+                val position = queue.removeFirst()
+
+                if (position == target) {
+                    return input[byteIndex]
+                }
+
+                for (direction in Direction.ALL) {
+                    val next = position + direction
+                    if (next.x in 0 until size && next.y in 0 until size && grid[next.y][next.x] == '.') {
+                        grid[next.y][next.x] = 'O'
+                        queue.add(next)
+                    }
+                }
+            }
+
+            // If no path was found, remove the last byte that has fallen and continue the search
+            val (j, i) = input[--byteIndex].split(',').map(String::toInt)
+            val bytePosition = Point2D(j, i)
+
+            grid[i][j] = '.'
+            for (direction in Direction.ALL) {
+                val neighbor = bytePosition + direction
+                if (neighbor.x in 0 until size && neighbor.y in 0 until size && grid[neighbor.y][neighbor.x] == 'O') {
+                    queue.add(neighbor)
+                }
+            }
+        }
+
+        error("no solution found")
     }
 }
 
@@ -69,11 +117,11 @@ fun main() {
     day18.bytes = 12
     day18.input = readInput("Day18_test")
     check(day18.part1().also { println("test part 1: $it") } == 22)
-//    check(day18.part2().also { println("test part 2: $it") } == 0)
+    check(day18.part2().also { println("test part 2: $it") } == "6,1")
 
     day18.size = 71
     day18.bytes = 1024
     day18.input = readInput("Day18")
     check(day18.part1().also { println("part 1: $it") } == 334)
-//    check(day18.part2().also { println("part 2: $it") } == 0)
+    check(day18.part2().also { println("part 2: $it") } == "20,12")
 }
